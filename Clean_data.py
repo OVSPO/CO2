@@ -50,8 +50,10 @@ def mp_factors (df):
 
     return df
 # funcion para calcular todos los parametros y variables necesarias para sacar la solucion lineal
-def calculate_params(df, p_atm, ref_Ca, ref_Cb):
-#def calculate_params(df):
+#def calculate_params(df, p_atm, ref_Ca, ref_Cb):
+def calculate_params(df):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17:08"""
+
+
     # esta parte saca los promedios de temperatura de los sensores superiores e inferiores, la funcion round, redondea el promedio a un decimal
     t_sup_mean = round(pd.Series.mean(df['Temp_sup']), 1)
     t_inf_mean = round(pd.Series.mean(df['Temp_inf']), 1)
@@ -60,8 +62,8 @@ def calculate_params(df, p_atm, ref_Ca, ref_Cb):
     DSTP = 1.39*10**-5
     MW = 44.01
     R = 8.3157
-    #P_atm = 635 #corresponde a la presion absoluta por tabla de la altura altitud: 3774
-    #ref_Ca = ((404*P_atm)/1013)*(298/(273.2+t_sup_mean))
+    P_atm = 635 #corresponde a la presion absoluta por tabla de la altura altitud: 3774#was commented 31/03/2020 20:07
+    ref_Ca = ((404*P_atm)/1013)*(298/(273.2+t_sup_mean))#was commented 31/03 20:09
 
     #---------Valor de referencia 5.2 utilizando las vigencias del trabajo en campo
     #ref_Ca = 5.2
@@ -181,21 +183,25 @@ def lecture(date_ini, date_end):
         #for j in range(year['0'+str(i)]+1):
     return df
 #funcion para graficar los datos del dataframe
-def graphs_J_lineal(df, date_ini, date_end, J_lineal_mean):
-#def graphs_J_lineal(df):
+#def graphs_J_lineal(df, date_ini, date_end, J_lineal_mean):
+def graphs_J_lineal(df):# """ <-- aquí cambié 31/03/2020 17:04"""
     #conjunto de funciones para guardar la grafica de los ppm sup e inf
     gf_1 = df.plot(x = "Fecha/Hora", y = ["ppm_sup", "ppm_inf"])
     gf_1.set_xlabel("Tiempo")
     gf_1.set_ylabel("Concentración [PPM]")
-    plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+'Concentracion.png')
+    plt.title('Concentración')
+    #plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+'Concentracion.png') esto no ibaen coment 18:27 31/03/2020
+    plt.savefig('./Gráficas/Grafica de Concentracion.png')
 
     #conjunto de funciones para guardar la grafica del flujo usando la solucion lineal
     #aqui tienes que buscar como configurar el texto del titulo y mostrar en el el flujo promedio de la semana o del rango de tiempo que pide el usuario
-    gf_2 = df.plot(x = "Fecha/Hora", y = "J_lineal")
+    gf_2 = df.plot(x = "Fecha/Hora", y = ["J_lineal"])
     gf_2.set_xlabel("Tiempo")
     gf_2.set_ylabel("Flujo [mol/m^2*dia]")
-    plt.show()
-    plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+' Flujo_lineal.png')
+    plt.title('Flujo lineal')
+    #plt.show()
+    #plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+' Flujo_lineal.png') esto lo puse en coment: 18:22 31/03/2020
+    plt.savefig('./Gráficas/Grafica de Flujo_lineal.png')
 
 #funcion main que tiene todas las funciones anteriores
 def main():
@@ -212,9 +218,12 @@ def main():
 
     # Solución modelo lineal
     df = mp_factors(df)
-    df, J_lineal_mean = calculate_params(df, p_atm, ref_Ca, ref_Cb)
+    #df, J_lineal_mean = calculate_params(df, p_atm, ref_Ca, ref_Cb)
+    df
+    J_lineal_mean = calculate_params(df)#"""<-- estaba lo que está en el renglón 215"""
 
     #Gráficas
-    graphs_J_lineal(df, date_ini, date_end, J_lineal_mean)
+    #graphs_J_lineal(df, date_ini, date_end, J_lineal_mean)
+    graphs_J_lineal(df)#"""<-- aquí también cambie y estaba lo de la linea 219"""
 
     return df
