@@ -21,7 +21,8 @@ if __name__ == '__main__':
     #df.to_csv('FD_PINUEL_TMP38_20200119.csv', index=None)
 
     #esto lo agrego el 31/03/2020 20:48
-    #writer = ExcelWriter('D:/OVSPOP/programapython_original/archivo_excel/FD_PINUEL_TMP38_20200119.xlsx')
+    df.columns = ['Fecha/Hora', 'Consecutivo', 'Trama', 'Red', 'Nombre_estacion', 'Metodologia', 'Puerto_serial', 'Descriptor_campo', 'Ventilador', 'Ca_ppm', 'T_sup', 'Cb_ppm', 'T_inf', 'T_ext', 'D_lineal', 'Ca', 'Cao', 'J_lineal']
+
     writer = ExcelWriter('./archivo_excel/FD_PINUEL_TMP38_20200119.xlsx')
     df.to_excel(writer, 'Hoja de datos', index = False)
     writer.save()

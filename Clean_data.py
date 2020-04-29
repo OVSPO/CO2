@@ -8,77 +8,77 @@ from matplotlib import pyplot as plt
 #primera función de filtro inicial, pone cabeceras y elimina las que no son de utilidad para el modelo
 def first_filter(df):
     # esta funcion ingresa las cabeceras del dataframe
-    df.columns = ['Fecha/Hora','Consecutivo','Trama','Red','Nombre_estacion','Metodologia','Puerto_serial','Descriptor_campo','Ventilador','ppm_sup',
-                  'Temp_sup','V_lamp_sup','ppm_inf','Temp_inf','V_lamp_inf','Flujo','Contador_Radon','U_vol_k1','Temp_k1_sup','U_vol_k2',
-                  'Temp_k2_inf','U_vol_k3','Temp_k3','U_vol_k4','Temp_k5','Temp_Ext','Vol_tmp','Temp_interna','Check_sum','Final']
+    df.columns = ['Fecha/Hora','Consecutivo','Trama','Red','Nombre_estacion','Metodologia','Puerto_serial','Descriptor_campo','Ventilador','CO2_PPM_SUPERIOR',
+                  'TEM_CO2_SUPERIOR','Vol_CO2_lamp_superior','CO2_PPM_INFERIOR','TEM_CO2_INFERIOR','Vol_CO2_lamp_inferior','Flujo','Contador_Radon','U_vol_k1','C1_TEMPERATURA','U_vol_k2',
+                  'C2_TEMPERATURA','U_vol_k3','Temp_k3','U_vol_k4','Temp_k5','TEMPERATURA_EXT','Vol_tmp','TEMPERATURA_INT','Check_sum','Final']
 
     # en esta parte se eliminan las columnas del dataframe que no se van a utilizar
     del df['Check_sum']
     del df['Final']
     del df['Vol_tmp']
-    del df['Temp_interna']
+    del df['TEMPERATURA_INT']
     del df['Temp_k5']
     del df['U_vol_k4']
     del df['Temp_k3']
     del df['U_vol_k3']
-    del df['Temp_k2_inf']
+    del df['C2_TEMPERATURA']
     del df['U_vol_k2']
-    del df['Temp_k1_sup']
+    del df['C1_TEMPERATURA']
     del df['U_vol_k1']
-    del df['V_lamp_sup']
-    del df['V_lamp_inf']
+    del df['Vol_CO2_lamp_superior']
+    del df['Vol_CO2_lamp_inferior']
     del df['Contador_Radon']
     del df['Flujo']
 
     # en esta parte se eliminan las filas del dataframe que tienen datos iguales a 0, los cuales no sirven para el estudio
-    df = df[df['ppm_sup'] != 0]
-    df = df[df['ppm_inf'] != 0]
+    df = df[df['CO2_PPM_SUPERIOR'] != 0]
+    df = df[df['CO2_PPM_INFERIOR'] != 0]
 
     return df
 
 # funcion para multiplicar todos los datos por los factores que se especifican en el geodata
 def mp_factors (df):
     # esta parte convierte la columna de texto a numero
-    df['Temp_inf'] = pd.to_numeric(df['Temp_inf'])
+    df['TEM_CO2_INFERIOR'] = pd.to_numeric(df['TEM_CO2_INFERIOR'])
 
-    df['ppm_sup'] = df['ppm_sup']/10
-    df['ppm_inf'] = df['ppm_inf']/10
+    df['CO2_PPM_SUPERIOR'] = df['CO2_PPM_SUPERIOR']/10# = Ca_ppm
+    df['CO2_PPM_INFERIOR'] = df['CO2_PPM_INFERIOR']/10# = Cb_ppm
 
-    df['Temp_sup'] = df['Temp_sup']/10
-    df['Temp_inf'] = df['Temp_inf']/10
-    df['Temp_Ext'] = df['Temp_Ext']/100
+    df['TEM_CO2_SUPERIOR'] = df['TEM_CO2_SUPERIOR']/10# = T_sup
+    df['TEM_CO2_INFERIOR'] = df['TEM_CO2_INFERIOR']/10# = T_inf
+    df['TEMPERATURA_EXT'] = df['TEMPERATURA_EXT']/100# = T_ext
 
     return df
 # funcion para calcular todos los parametros y variables necesarias para sacar la solucion lineal
-#def calculate_params(df, p_atm, ref_Ca, ref_Cb):
+#def calculate_params(df, p_atm, Ca_ref, Cb_ref):
 def calculate_params(df):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17:08"""
 
 
     # esta parte saca los promedios de temperatura de los sensores superiores e inferiores, la funcion round, redondea el promedio a un decimal
-    t_sup_mean = round(pd.Series.mean(df['Temp_sup']), 1)
-    t_inf_mean = round(pd.Series.mean(df['Temp_inf']), 1)
+    t_sup_mean = round(pd.Series.mean(df['TEM_CO2_SUPERIOR']), 1)
+    t_inf_mean = round(pd.Series.mean(df['TEM_CO2_INFERIOR']), 1)
 
     #constantes necesarias para el calculo de la solucion lineal
     DSTP = 1.39*10**-5
     MW = 44.01
     R = 8.3157
     P_atm = 635 #corresponde a la presion absoluta por tabla de la altura altitud: 3774#was commented 31/03/2020 20:07
-    ref_Ca = ((404*P_atm)/1013)*(298/(273.2+t_sup_mean))#was commented 31/03 20:09
+    Ca_ref = ((404*P_atm)/1013)*(298/(273.2+t_sup_mean))#was commented 31/03 20:09
 
     #---------Valor de referencia 5.2 utilizando las vigencias del trabajo en campo
-    #ref_Ca = 5.2
-    #ref_Cb = ((404*P_atm)/1013)*(298/(273.2+t_inf_mean))
+    #Ca_ref = 5.2
+    #Cb_ref = ((404*P_atm)/1013)*(298/(273.2+t_inf_mean))
     Za = -0.03333
     f_convert = (MW*1000)/(86400)
 
     # Aqui se realizan todos lso calculos necesarios para tener el flujo en la solucion lineal, las ecuaciones estan en el archivo word, orden de ecuaciones.........
 
-    #df['DSTP_lineal'] = DSTP*(((273.2+(df['Temp_sup']+df['Temp_inf'])/2)/273.2)**(1.75*(1013/P_atm)))
-    df['DSTP_lineal'] = DSTP*(((273.2+df['Temp_sup'])/273.2)**(1.75*(1013/P_atm)))
-    df['Ca'] =round((P_atm*MW*df['ppm_sup']*0.1)/(R*(df['Temp_sup']+273.2)),2)
-    #df['Co'] =round((P_atm*MW*((ref_Ca+ref_Cb)/2)*0.1)/(R*(df['Temp_Ext']+273.2)),2)
-    df['Co'] =round((P_atm*MW*((ref_Ca)/1)*0.1)/(R*(df['Temp_Ext']+273.2)),2)
-    df['J_lineal'] = -df['DSTP_lineal']*(df['Ca']-df['Co'])/Za
+    #df['D_lineal'] = DSTP*(((273.2+(df['TEM_CO2_SUPERIOR']+df['TEM_CO2_INFERIOR'])/2)/273.2)**(1.75*(1013/P_atm)))
+    df['D_lineal'] = DSTP*(((273.2+df['TEM_CO2_SUPERIOR'])/273.2)**(1.75*(1013/P_atm)))
+    df['Ca'] =round((P_atm*MW*df['CO2_PPM_SUPERIOR']*0.1)/(R*(df['TEM_CO2_SUPERIOR']+273.2)),2)
+    #df['Co'] =round((P_atm*MW*((Ca_ref+Cb_ref)/2)*0.1)/(R*(df['TEMPERATURA_EXT']+273.2)),2)
+    df['Co'] =round((P_atm*MW*((Ca_ref)/1)*0.1)/(R*(df['TEMPERATURA_EXT']+273.2)),2)
+    df['J_lineal'] = -df['D_lineal']*(df['Ca']-df['Co'])/Za
     df['J_lineal'] = round((df['J_lineal']*f_convert),5)
 
     # esta funcion calcula el promedio del flujo en la solucion lineal
@@ -89,14 +89,14 @@ def calculate_params(df):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17
 # esta funcion corrige una corrupcion de los datos en la temperatura del sensor inferior
 def data_solutions (df):
     #condicional para verificar que hay datos corruptos que convierten la columna en tipo objecto
-    if df['Fecha/Hora'].dtypes == df['Temp_inf'].dtypes:
+    if df['Fecha/Hora'].dtypes == df['TEM_CO2_INFERIOR'].dtypes:
         # creo una columna llamada bool donde los valores que estan en false son los datos corruptos
-        df.loc[df['Temp_inf'].str.len() != 4, 'bool'] = False
+        df.loc[df['TEM_CO2_INFERIOR'].str.len() != 4, 'bool'] = False
         # si hay un dato falso en bool, ingresa al loop
         if False in df['bool']:
             #recorro todas las filas del dataframe y reemplazo el valor corrupto por el real
             for i in df.index:
-                df.at[i, 'Temp_inf'] = df['Temp_inf'].loc[i][:4] if df['bool'][i] == False else df['Temp_inf'].loc[i]
+                df.at[i, 'TEM_CO2_INFERIOR'] = df['TEM_CO2_INFERIOR'].loc[i][:4] if df['bool'][i] == False else df['TEM_CO2_INFERIOR'].loc[i]
             # elimino la columna bool
             del df['bool']
 
@@ -152,10 +152,10 @@ def inputs_params():
     p_atm = float(input())
 
     print("Digite el valor de referencia para el sensor superior: ")
-    ref_Ca = float(input())
+    Ca_ref = float(input())
 
     print("Digite el valor de referencia para el sensor inferior: ")
-    ref_Cb = float(input())
+    Cb_ref = float(input())
 
     print("Digite el valor del tao de subida [min]: ")
     tao_up = int(input())
@@ -164,7 +164,7 @@ def inputs_params():
     tao_down = int(input())
 
     #esta funcion retorna multiples parametros
-    return d_if, d_ef, p_atm, ref_Ca, ref_Cb, tao_up, tao_down
+    return d_if, d_ef, p_atm, Ca_ref, Cb_ref, tao_up, tao_down
 
 #funcion que debe de leer todos los dias que el usuario desee
 def lecture(date_ini, date_end):
@@ -186,7 +186,7 @@ def lecture(date_ini, date_end):
 #def graphs_J_lineal(df, date_ini, date_end, J_lineal_mean):
 def graphs_J_lineal(df):# """ <-- aquí cambié 31/03/2020 17:04"""
     #conjunto de funciones para guardar la grafica de los ppm sup e inf
-    gf_1 = df.plot(x = "Fecha/Hora", y = ["ppm_sup", "ppm_inf"])
+    gf_1 = df.plot(x = "Fecha/Hora", y = ["Ca_ppm", "Cb_ppm"])
     gf_1.set_xlabel("Tiempo")
     gf_1.set_ylabel("Concentración [PPM]")
     plt.title('Concentración')
@@ -206,7 +206,7 @@ def graphs_J_lineal(df):# """ <-- aquí cambié 31/03/2020 17:04"""
 #funcion main que tiene todas las funciones anteriores
 def main():
     #Parametros de entrada
-    d_if, d_ef, p_atm, ref_Ca, ref_Cb, tao_up, tao_down = inputs_params()
+    d_if, d_ef, p_atm, Ca_ref, Cb_ref, tao_up, tao_down = inputs_params()
 
     #Lectura del data frame
     df = lecture(d_if, d_ef)
@@ -218,7 +218,7 @@ def main():
 
     # Solución modelo lineal
     df = mp_factors(df)
-    #df, J_lineal_mean = calculate_params(df, p_atm, ref_Ca, ref_Cb)
+    #df, J_lineal_mean = calculate_params(df, p_atm, Ca_ref, Cb_ref)
     df
     J_lineal_mean = calculate_params(df)#"""<-- estaba lo que está en el renglón 215"""
 
