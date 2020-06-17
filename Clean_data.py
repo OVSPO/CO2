@@ -4,6 +4,11 @@ import pandas as pd
 import re
 # Framework y libreria para trabajar con graficos y imagenes
 from matplotlib import pyplot as plt
+from math import *
+from numpy import *
+#import seaborn as sns
+
+
 
 #primera función de filtro inicial, pone cabeceras y elimina las que no son de utilidad para el modelo
 def first_filter(df):
@@ -11,6 +16,7 @@ def first_filter(df):
     df.columns = ['Fecha/Hora','Consecutivo','Trama','Red','Nombre_estacion','Metodologia','Puerto_serial','Descriptor_campo','Ventilador','CO2_PPM_SUPERIOR',
                   'TEM_CO2_SUPERIOR','Vol_CO2_lamp_superior','CO2_PPM_INFERIOR','TEM_CO2_INFERIOR','Vol_CO2_lamp_inferior','Flujo','Contador_Radon','U_vol_k1','C1_TEMPERATURA','U_vol_k2',
                   'C2_TEMPERATURA','U_vol_k3','Temp_k3','U_vol_k4','Temp_k5','TEMPERATURA_EXT','Vol_tmp','TEMPERATURA_INT','Check_sum','Final']
+
 
     # en esta parte se eliminan las columnas del dataframe que no se van a utilizar
     del df['Check_sum']
@@ -51,22 +57,24 @@ def mp_factors (df):
     return df
 # funcion para calcular todos los parametros y variables necesarias para sacar la solucion lineal
 #def calculate_params(df, p_atm, Ca_ref, Cb_ref):
-def calculate_params(df):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17:08"""
+def calculate_params(df, df_atm):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17:08"""
 
+    #df['Presion_atmos'] = df_atm['Presion_atm']
 
     # esta parte saca los promedios de temperatura de los sensores superiores e inferiores, la funcion round, redondea el promedio a un decimal
-    t_sup_mean = round(pd.Series.mean(df['TEM_CO2_SUPERIOR']), 1)
-    t_inf_mean = round(pd.Series.mean(df['TEM_CO2_INFERIOR']), 1)
+    t_sup_mean = round(pd.Series.mean(df['TEM_CO2_SUPERIOR']), 3)
+    t_inf_mean = round(pd.Series.mean(df['TEM_CO2_INFERIOR']), 3)
 
     #constantes necesarias para el calculo de la solucion lineal
-    D_stp = 1.39*10**-5
-    MW = 44.01
-    R = 8.3157
-    P_atm = 635 #corresponde a la presion absoluta por tabla de la altura altitud: 3774#was commented 31/03/2020 20:07
+    D_stp = 1.39*(10**-5)  #(m^2/s)
+    MW = 44.01   #(g/mol)
+    R = 8.3157   #(m^3*Pa)/(K*mol)
+    P_atm = 636 #corresponde a la presion absoluta por tabla de la altura altitud: 3774#was commented 31/03/2020 20:07
     #Ca_ref = ((404*P_atm)/1013)*(298/(273.2+t_sup_mean))#was commented 31/03 20:09#vuelve a comentarse 29/04/2020
 
     #---------Valor de referencia 5.2 utilizando las vigencias del trabajo en campo
-    Ca_ref = 5.2#se quita el comentario: 29/04/2020
+    Ca_ref = 87.6 #73.5#estaba comentado hasta el: 29/04/2020 #se cambia el valor por el menor de los CO2_PPM_SUPERIOR
+    Ta_ref = 23.7#temperatura de referencia para el sensor superior
     #Cb_ref = ((404*P_atm)/1013)*(298/(273.2+t_inf_mean))
     Za = -0.03333
     f_convert = (MW*1000)/(86400)
@@ -74,21 +82,40 @@ def calculate_params(df):#"""<--- aquí cambié -es lo de arriba-, 31/03/2020 17
     # Aqui se realizan todos lso calculos necesarios para tener el flujo en la solucion lineal, las ecuaciones estan en el archivo word, orden de ecuaciones.........
 
     #df['D_lineal'] = D_stp*(((273.2+(df['TEM_CO2_SUPERIOR']+df['TEM_CO2_INFERIOR'])/2)/273.2)**(1.75*(1013/P_atm)))
-    df['D_lineal'] = D_stp*(((273.2+df['TEM_CO2_SUPERIOR'])/273.2)**(1.75*(1013/P_atm)))
-    df['Ca'] =round((P_atm*MW*df['CO2_PPM_SUPERIOR']*0.1)/(R*(df['TEM_CO2_SUPERIOR']+273.2)),2)
+    ######Creo que la ecuación de arriba está mal. La corrigo a continuación:
+    df['suma media de tem'] = (df['TEM_CO2_SUPERIOR'] + df['TEMPERATURA_EXT']) / 2
+    df['elevado 1.75'] = ((273.2 + df['suma media de tem']) / 273.2) ** 1.75
+    df['mul_D_stp'] = D_stp * df['elevado 1.75']
+    df['D_lineal'] = df['mul_D_stp'] * (1013 / P_atm)
+    ######
+    #df['D_lineal'] = D_stp*(((273.2+df['TEM_CO2_SUPERIOR'])/273.2)**(1.75*(1013/P_atm)))
+    df['Ca_1'] =round((P_atm*MW*df['CO2_PPM_SUPERIOR']*0.1)/(R*(df['TEM_CO2_SUPERIOR']+273.2)),5)
     #df['Co'] =round((P_atm*MW*((Ca_ref+Cb_ref)/2)*0.1)/(R*(df['TEMPERATURA_EXT']+273.2)),2)
-    df['Co'] =round((P_atm*MW*((Ca_ref)/1)*0.1)/(R*(df['TEMPERATURA_EXT']+273.2)),2)
-    df['J_lineal'] = -df['D_lineal']*(df['Ca']-df['Co'])/Za
-    df['J_lineal'] = round((df['J_lineal']*f_convert),5)
+    #####df['Cao'] =round((P_atm*MW*((Ca_ref)/1)*0.1)/(R*(Ta_ref+273.2)),3)
+    Cao = round((P_atm*MW*Ca_ref*0.1)/(R*(Ta_ref+273.2)),5)
+    #####df['J_lineal'] = -df['D_lineal']*(df['Ca_1']-df['Cao'])/Za
+    df['J_lineal'] = -(df['D_lineal'])*((df['Ca_1'] - Cao)/Za)
+    #df['J_lineal'] = round((df['J_lineal']*f_convert),3)
 
     # esta funcion calcula el promedio del flujo en la solucion lineal
-    J_mean = round(pd.Series.mean(df['J_lineal']),2)
+    J_mean = round(pd.Series.mean(df['J_lineal']), 5)
+    df['J_lineal_est'] = round((df['J_lineal'])*1.99, 5)
+
+#######Se agregarán las fórmulas para tener dos gráficas más: una donde se varía solo la Presión y se tiene pero se usa t_sup_mean; y otra donde se varía la temperatura, pero se deja la P_atm_media. Para esta presión media se utiliza el documento descargado de la estación meteorológica de Cocuy4. Se utiliza la ecuación 3 del documento "Orden de las ecuaciones..."
+
+    ####Compensación de la temperatura -> se usa la media de la Presión atmosférica, con la ayuda del archivo que se exportó de la estación meteorológica de Cocuy4 y el dataframe creado con su columna:
+    P_atm_media = round(pd.Series.mean(df_atm['Presion']), 5)
+    df['Ca_compT'] = round((P_atm_media * MW * df['CO2_PPM_SUPERIOR'] * 0.1) / (R * (df['TEM_CO2_SUPERIOR'] + 273.2)), 5)
+    ####Compensación de la presión -> se usa la media de la teperatura superior:
+    df['Ca_compP'] = round((df_atm['Presion'] * MW * df['CO2_PPM_SUPERIOR'] * 0.1) / (R * (t_sup_mean + 273.2)), 5)
+    #####Con la variación de la temperatura y la presión:
+    df['Ca'] = round((df_atm['Presion'] * MW * df['CO2_PPM_SUPERIOR'] * 0.1) / (R * (df['TEM_CO2_SUPERIOR'] + 273.2)), 5)
 
     return df, J_mean
 
     ############29/04/2020: Una nueva función solo para que calcule el promedio del flujo en la solución lineal, y lo quito de la función calculate_params:
 def J_lineal_medio(df):
-    f_medio = round(pd.Series.mean(df['J_lineal']),2)
+    f_medio = round(pd.Series.mean(df['J_lineal']),5)
     return f_medio
 
 # esta funcion corrige una corrupcion de los datos en la temperatura del sensor inferior
@@ -189,29 +216,87 @@ def lecture(date_ini, date_end):
     return df
 #funcion para graficar los datos del dataframe
 #def graphs_J_lineal(df, date_ini, date_end, J_lineal_mean):
-def graphs_J_lineal(df):# """ <-- aquí cambié 31/03/2020 17:04"""
+def graphs_J_lineal(df, df_atm):# """ <-- aquí cambié 31/03/2020 17:04"""
+
     #conjunto de funciones para guardar la grafica de los ppm sup e inf
-    gf_1 = df.plot(x = "Fecha/Hora", y = ["Ca_ppm", "Cb_ppm"])
-    gf_1.set_xlabel("Tiempo")
-    gf_1.set_ylabel("Gráfica para la concentración de CO2 [PPM]")
-    plt.title('Concentración')
+    gf_1 = df.plot(x = "Fecha/Hora", y = ["CO2_PPM_SUPERIOR", "CO2_PPM_INFERIOR"])
+    gf_1.set_xlabel("Tiempo [s]")
+    gf_1.set_ylabel("Concentración [PPM]")
+    plt.title('Concentración de CO2')
+    #plt.text(40, 0.5, "texto 1", fontsize = 20)
+    plt.xticks(rotation = 25)
+
+    ######
+    ####Colores para las lineas
+    #gf_1.xaxis.label.set_color('red')
+    #gf_1.tick_params(axis = 'x', colors = 'red')
+    #plt.legend('Ca_1', 'Cb')
+    ######
+    #gf_1.subtitle('no sé D:', fontsize = 10, fontweight = 'bold')
     #plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+'Concentracion.png') esto no ibaen coment 18:27 31/03/2020
-    plt.savefig('./Gráficas/Grafica de Concentracion.png')
+    plt.savefig('./Gráficas/Concentracion.png')
 
     #conjunto de funciones para guardar la grafica del flujo usando la solucion lineal
     #aqui tienes que buscar como configurar el texto del titulo y mostrar en el el flujo promedio de la semana o del rango de tiempo que pide el usuario
 
 ##### esto se lo agrego para el flujo medio:
-    flujo_medio = J_lineal_medio(df)
+
+    flujo_medio = round(J_lineal_medio(df), 5)
+    #flujo_medio_est = round((flujo_medio * 1.999), 3)
     flujo_medio = str(flujo_medio)
+    #flujo_medio_est = str(flujo_medio_est)
     gf_2 = df.plot(x = "Fecha/Hora", y = ["J_lineal"])
     gf_2.set_xlabel("Tiempo")
     gf_2.set_ylabel("Flujo [mol/m^2*dia]")
-    plt.title('Gráfica para el Flujo de CO2\n\n *Flujo medio = ' + flujo_medio + ' [mol/m^2*dia]')
+    plt.xticks(rotation = 25)
+
+    plt.title('Flujo de CO2 lineal\n\n *Flujo_prom = ' + flujo_medio + ' [mol/m^2*día]')
     #plt.show()
     #plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+' Flujo_lineal.png') esto lo puse en coment: 18:22 31/03/2020
-    plt.savefig('./Gráficas/Grafica de Flujo_lineal.png')
+    plt.savefig('./Gráficas/Flujo_lineal.png')
+    #########################################################
 
+    ###############Gráfica para el flujo medio estimado:
+    flujo_medio = round(J_lineal_medio(df), 5)
+    flujo_medio_est = round((flujo_medio * 1.999), 5)
+    flujo_medio = str(flujo_medio)
+    flujo_medio_est = str(flujo_medio_est)
+    gf_4 = df.plot(x = "Fecha/Hora", y = ["J_lineal_est"])
+    gf_4.set_xlabel("Tiempo [s]")
+    gf_4.set_ylabel("Flujo [mol/m^2*dia]")
+    plt.xticks(rotation = 25)
+    plt.title('Flujo de CO2 lineal estimado \n\ne = 1.99\n *Flujo_prom_est = Flujo_prom * e = ' + flujo_medio_est + ' [mol/m^2*día]')
+    #plt.show()
+    #plt.savefig('./graficas/Grafica de '+date_ini+' a '+date_end+' Flujo_lineal.png') esto lo puse en coment: 18:22 31/03/2020
+    plt.savefig('./Gráficas/Flujo_lineal_estimado.png')
+    ###################################################
+
+    ####################30/04/2020 - Nueva gráfica, con la Compensaciónde la temperatura:
+    gf_3 = df.plot(x = "Fecha/Hora", y = ["Ca_compT", "Ca_compP", 'Ca'])
+    gf_3.set_xlabel("Tiempo [s]")
+    gf_3.set_ylabel("Concentración [mg/m^3]")
+    plt.xticks(rotation = 25)
+    plt.title('Concentración de CO2 con compensación')
+    plt.savefig('./Gráficas/Concentracion compensada.png')
+    ###################################
+
+    ####################gráfica para la presión
+    gf_5 = df_atm.plot(x = "Fecha", y = ['Presion'])
+    gf_5.set_xlabel("Tiempo [s]")
+    gf_5.set_ylabel("Presión atmosférica [hPas]")
+    plt.xticks(rotation = 25)
+    plt.title('Presión atmosférica')
+    plt.savefig('./Gráficas/Presión atmosférica.png')
+    ###################################
+
+    ####################gráfica para la presión
+    gf_5 = df.plot(x = "Fecha/Hora", y = ['TEM_CO2_SUPERIOR'])
+    gf_5.set_xlabel("Tiempo [s]")
+    gf_5.set_ylabel("Temperatura [°C]")
+    plt.xticks(rotation = 25)
+    plt.title('Temperatura')
+    plt.savefig('./Gráficas/Temperatura.png')
+    ###################################
 #funcion main que tiene todas las funciones anteriores
 def main():
     #Parametros de entrada
